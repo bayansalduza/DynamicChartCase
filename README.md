@@ -71,7 +71,6 @@ These credentials are used for connecting to the API.
 
 - **API Swagger URL:** [https://dynamic-chart-api.bakibayansalduz.com/swagger/index.html](https://dynamic-chart-api.bakibayansalduz.com/swagger/index.html)
 - **Front-End URL:** [https://dynamic-chart.bakibayansalduz.com/](https://dynamic-chart.bakibayansalduz.com/)
-- **GitHub API Repo URL:** [https://github.com/bayansalduza/DynamicChartCase](https://github.com/bayansalduza/DynamicChartCase)
 - **GitHub FE Repo URL:** [https://github.com/bayansalduza/DynamicChartCaseFE](https://github.com/bayansalduza/DynamicChartCaseFE)
 
 ---
