@@ -1,0 +1,82 @@
+name: CI and production deployment
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy after checks (disable for CI only)
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4
+        with:
+          dotnet-version: 8.0.x
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - run: dotnet restore DynamicChartCase.sln
+      - run: dotnet build DynamicChartCase.sln --configuration Release --no-restore
+      - run: node --test .github/scripts/request-deployment.test.cjs
+      - name: Check production image and health endpoint
+        run: |
+          docker build --tag dynamicchart-api:ci .
+          bash tests/container-smoke.sh dynamicchart-api:ci
+
+  deploy:
+    needs: checks
+    if: >-
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/master' &&
+      (github.event_name != 'workflow_dispatch' || inputs.deploy)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      deployments: write
+    environment: production-dynamicchart-api
+    concurrency:
+      group: production-dynamicchart-api
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Build release image
+        env:
+          IMAGE_NAME: dynamicchart-api
+        run: |
+          docker build --tag "$IMAGE_NAME:sha-$GITHUB_SHA" .
+          docker save "$IMAGE_NAME:sha-$GITHUB_SHA" | gzip > image.tar.gz
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        id: image
+        with:
+          name: dynamicchart-api-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: image.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+      - name: Request deployment and wait for Ubuntu health checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOY_TARGET: dynamicchart-api
+          IMAGE_NAME: dynamicchart-api
+          PRIMARY_BRANCH: master
+          ARTIFACT_ID: ${{ steps.image.outputs.artifact-id }}
+        run: node .github/scripts/request-deployment.cjs

@@ -1,0 +1,11 @@
+.git
+.github
+**/bin
+**/obj
+**/node_modules
+**/*.env
+**/.env*
+**/appsettings*.json
+!deploy/appsettings.Production.json
+**/logs
+**/*.bak
